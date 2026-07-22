@@ -75,22 +75,20 @@ export async function GET(req: NextRequest) {
         );
 
         // 2. Analyze photos
-        step(`Analyzing ${lot.photos.length} photos with Claude`);
+        step(
+          usedCache
+            ? "Loading cached photo analysis"
+            : `Analyzing ${lot.photos.length} photos with Claude`
+        );
         let analysis;
-        try {
+        if (usedCache) {
+          analysis = DEMO_ANALYSIS;
+          send("notice", {
+            message:
+              "Demo mode — showing a cached lot and cached photo analysis.",
+          });
+        } else {
           analysis = await analyzeLot(lot);
-        } catch (e) {
-          if (usedCache) {
-            // keep the demo alive: cached lot gets a cached verdict
-            analysis = DEMO_ANALYSIS;
-            send("notice", {
-              message:
-                "Photo analysis unavailable — showing a cached demo verdict.",
-              detail: e instanceof Error ? e.message : String(e),
-            });
-          } else {
-            throw e;
-          }
         }
         step("Photo analysis complete", "done");
 
@@ -100,7 +98,11 @@ export async function GET(req: NextRequest) {
           lot.currentBid && lot.currentBid > 0
             ? Math.round(lot.currentBid * 1.15)
             : Math.round((lot.estRetailValue ?? 5000) * 0.4);
-        const purchaseUsd = priceParam ? Number(priceParam) : defaultPrice;
+        const parsedPrice = priceParam ? Number(priceParam) : NaN;
+        const purchaseUsd =
+          Number.isFinite(parsedPrice) && parsedPrice > 0
+            ? parsedPrice
+            : defaultPrice;
         const report = buildReport(lot, analysis, purchaseUsd);
         step("Report ready", "done");
 

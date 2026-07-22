@@ -14,7 +14,7 @@ const money = (n: number) =>
 export default function Home() {
   const [input, setInput] = useState("");
   const [price, setPrice] = useState("");
-  const [useCache, setUseCache] = useState(false);
+  const [useCache, setUseCache] = useState(true);
   const [steps, setSteps] = useState<Step[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +82,7 @@ export default function Home() {
 
     const es = new EventSource(`/api/analyze?${params.toString()}`);
     esRef.current = es;
+    let completed = false;
 
     es.addEventListener("step", (ev) => {
       const s = JSON.parse((ev as MessageEvent).data) as Step;
@@ -107,6 +108,7 @@ export default function Home() {
 
     es.addEventListener("report", (ev) => {
       const r = JSON.parse((ev as MessageEvent).data) as Report;
+      completed = true;
       setReport(r);
       setRunning(false);
       setNote({ text: "Report ready", tone: "ok" });
@@ -114,6 +116,7 @@ export default function Home() {
     });
 
     es.addEventListener("error", (ev) => {
+      if (completed) return;
       const raw = (ev as MessageEvent).data;
       if (raw) {
         try {
@@ -183,7 +186,10 @@ export default function Home() {
               <div className="check__opts">
                 <input
                   className="check__price"
+                  type="number"
                   inputMode="numeric"
+                  min="1"
+                  step="1"
                   placeholder="target price, $"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}

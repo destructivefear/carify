@@ -1,5 +1,24 @@
 import type { Metadata } from "next";
+import { Golos_Text, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
+
+const displayFont = Unbounded({
+  subsets: ["cyrillic", "latin"],
+  weight: ["500", "700"],
+  variable: "--font-unbounded",
+});
+
+const bodyFont = Golos_Text({
+  subsets: ["cyrillic", "latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-golos",
+});
+
+const monoFont = JetBrains_Mono({
+  subsets: ["cyrillic", "latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains",
+});
 
 export const metadata: Metadata = {
   title: "CARify — verdict on a Copart lot before you bid",
@@ -13,19 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin=""
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="en"
+      className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

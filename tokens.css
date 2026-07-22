@@ -26,9 +26,9 @@
   --color-shadow:   oklch(6% 0.01 250 / 0.5);
 
   /* type */
-  --font-display: "Unbounded", "Arial Black", sans-serif;
-  --font-body:    "Golos Text", "Helvetica Neue", sans-serif;
-  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+  --font-display: var(--font-unbounded), "Arial Black", sans-serif;
+  --font-body:    var(--font-golos), "Helvetica Neue", sans-serif;
+  --font-mono:    var(--font-jetbrains), ui-monospace, monospace;
 
   /* scale 1.25 */
   --text-xs:   0.75rem;

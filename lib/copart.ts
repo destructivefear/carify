@@ -17,19 +17,42 @@ async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     // Copart is behind Imperva/Incapsula, which reliably challenges the
     // headless shell (the API fetch comes back as a challenge page instead of
-    // JSON). A headed Chromium passes the challenge, so we launch headed but
-    // park the window offscreen so it doesn't disrupt a local demo.
+    // JSON). A headed Chromium passes the challenge. macOS ignores
+    // --window-position/--start-minimized, so we additionally minimize the
+    // window over CDP once it exists (see minimizeWindow) to keep it off a
+    // live demo screen.
     browserPromise = chromium.launch({
       headless: false,
       args: [
         "--disable-blink-features=AutomationControlled",
-        "--window-position=2400,2400",
+        "--window-position=-32000,-32000",
         "--window-size=1280,900",
         "--start-minimized",
       ],
     });
   }
   return browserPromise;
+}
+
+/**
+ * macOS Chromium ignores the minimize/offscreen launch flags and shows the
+ * window anyway. CDP's Browser.setWindowBounds reliably minimizes it, so no
+ * stray Copart window pops up over a live presentation.
+ */
+async function minimizeWindow(page: Page): Promise<void> {
+  try {
+    const cdp = await page.context().newCDPSession(page);
+    const { windowId } = (await cdp.send("Browser.getWindowForTarget")) as {
+      windowId: number;
+    };
+    await cdp.send("Browser.setWindowBounds", {
+      windowId,
+      bounds: { windowState: "minimized" },
+    });
+    await cdp.detach().catch(() => {});
+  } catch {
+    /* best-effort — never let window chrome break the fetch */
+  }
 }
 
 async function getContext(): Promise<BrowserContext> {
@@ -58,14 +81,32 @@ async function getWarmPage(force = false): Promise<Page> {
   }
   const ctx = await getContext();
   const page = await ctx.newPage();
-  await page.goto(
-    "https://www.copart.com/lotSearchResults/?free=true&query=toyota",
-    { waitUntil: "domcontentloaded", timeout: 45000 }
-  );
+  await minimizeWindow(page);
+  // Warm on the Copart homepage (same origin as the lot JSON endpoints) so the
+  // Imperva challenge clears; a neutral URL avoids any stray "toyota search"
+  // window if the OS briefly shows the frame before it minimizes.
+  await page.goto("https://www.copart.com/", {
+    waitUntil: "domcontentloaded",
+    timeout: 45000,
+  });
   // Give the Incapsula challenge script time to clear and set the cookie.
   await page.waitForTimeout(4000);
   warmPage = page;
   return page;
+}
+
+/**
+ * Warm the browser + Imperva cookie ahead of the first analysis (called from
+ * instrumentation at server start) so the one-time headed window is created and
+ * minimized during boot, not in the middle of a live demo. Failures are
+ * swallowed — the request path re-warms and falls back to the cached lot.
+ */
+export async function warmUp(): Promise<void> {
+  try {
+    await getWarmPage();
+  } catch {
+    /* boot-time warm is best-effort */
+  }
 }
 
 export function parseLotNumber(input: string): string | null {
