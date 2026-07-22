@@ -246,7 +246,10 @@ async function fetchRaw(lotNumber: string, page: Page): Promise<RawFetch> {
             (c: { highResUrl?: string; fullUrl?: string }) =>
               c.highResUrl || c.fullUrl
           )
-          .filter(Boolean);
+          .filter(
+            (u: unknown): u is string =>
+              typeof u === "string" && /^https?:\/\//i.test(u)
+          );
       } catch {
         /* ignore */
       }

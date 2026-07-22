@@ -120,7 +120,12 @@ function coerce(raw: unknown): Analysis {
 
 export async function analyzeLot(lot: Lot): Promise<Analysis> {
   const anthropic = client();
-  const photos = lot.photos.slice(0, MAX_PHOTOS);
+  // Only remote http(s) images are valid for the vision API; lazy-load
+  // placeholders (data: URIs, svg spacers) trigger a 400 "invalid base64" if
+  // forwarded, so drop anything that is not a real remote URL.
+  const photos = lot.photos
+    .filter((u) => typeof u === "string" && /^https?:\/\//i.test(u))
+    .slice(0, MAX_PHOTOS);
 
   const content: Anthropic.MessageParam["content"] = [
     {
