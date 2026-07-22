@@ -1,0 +1,2 @@
+/* The wired app reuses the exact landing design (styles.css -> tokens.css). */
+@import "../styles.css";
