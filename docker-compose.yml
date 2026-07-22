@@ -1,0 +1,20 @@
+services:
+  carify:
+    build: .
+    image: carify:latest
+    container_name: carify
+    restart: unless-stopped
+    # Secrets come from a server-side .env (chmod 600), never from the image.
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    # Bind to loopback only: reachable exclusively via nginx (which sits behind
+    # Cloudflare). Never exposed to the public interface directly.
+    ports:
+      - "127.0.0.1:13010:3000"
+    # Chromium crashes with the default 64MB /dev/shm.
+    shm_size: "1gb"
+    # Reap zombie Chromium/renderer processes (node as PID1 would not).
+    init: true

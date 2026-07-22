@@ -7,7 +7,10 @@ const MAX_PHOTOS = 16;
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
-  return new Anthropic({ apiKey });
+  // Force the SDK onto Node's native (undici) fetch. The bundled node-fetch
+  // fallback in @anthropic-ai/sdk 0.32.1 throws "Premature close" while
+  // gunzipping responses on Node 24, which killed every live analysis.
+  return new Anthropic({ apiKey, fetch: globalThis.fetch });
 }
 
 const SYSTEM = `You are a veteran salvage-car reseller who imports US auction cars into Georgia (the country) through the port of Poti and resells them locally.

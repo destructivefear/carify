@@ -1,0 +1,25 @@
+node_modules
+.next
+out
+build
+.git
+.gitignore
+
+# secrets never enter the image — they are injected at runtime via env_file
+.env
+.env.local
+.env*.local
+
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.pem
+
+playwright-report
+.playwright-mcp
+.hallmark
+Dockerfile
+.dockerignore
