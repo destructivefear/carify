@@ -545,6 +545,20 @@ export default function Home() {
         </section>
 
       </main>
+
+      <footer className="foot">
+        <p className="foot__meta">
+          carify · coded with{" "}
+          <a
+            className="foot__link"
+            href="https://cursor.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Cursor
+          </a>
+        </p>
+      </footer>
     </>
   );
 }

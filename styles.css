@@ -158,6 +158,7 @@ a { color: inherit; }
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-sm);
   max-width: 34rem;
+  scroll-margin-top: 6rem;
   animation: rise var(--dur-long) var(--ease-out) 240ms both;
 }
 
@@ -263,6 +264,7 @@ a { color: inherit; }
   max-width: 74rem;
   margin-inline: auto;
   padding: var(--space-3xl) clamp(1rem, 4vw, 2.5rem) var(--space-2xl);
+  scroll-margin-top: 5rem;
 }
 
 .process__title {
@@ -325,6 +327,7 @@ a { color: inherit; }
   max-width: 74rem;
   margin-inline: auto;
   padding: var(--space-2xl) clamp(1rem, 4vw, 2.5rem) var(--space-3xl);
+  scroll-margin-top: 5rem;
 }
 
 .verdict__title {
@@ -543,6 +546,14 @@ a { color: inherit; }
   max-width: 28ch;
   margin-bottom: var(--space-2xl);
 }
+
+.foot__link {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--dur-short) var(--ease-out);
+}
+.foot__link:hover { color: var(--color-accent-deep); }
+.foot__link:active { color: var(--color-ink); }
 
 .foot__meta {
   font-family: var(--font-mono);

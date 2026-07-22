@@ -1,4 +1,9 @@
-import { chromium, type Browser, type BrowserContext } from "playwright";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from "playwright";
 import type { Lot } from "./types";
 
 const UA =
@@ -6,11 +11,23 @@ const UA =
 
 let browserPromise: Promise<Browser> | null = null;
 let context: BrowserContext | null = null;
-let warmed = false;
+let warmPage: Page | null = null;
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    browserPromise = chromium.launch({ headless: true });
+    // Copart is behind Imperva/Incapsula, which reliably challenges the
+    // headless shell (the API fetch comes back as a challenge page instead of
+    // JSON). A headed Chromium passes the challenge, so we launch headed but
+    // park the window offscreen so it doesn't disrupt a local demo.
+    browserPromise = chromium.launch({
+      headless: false,
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--window-position=2400,2400",
+        "--window-size=1280,900",
+        "--start-minimized",
+      ],
+    });
   }
   return browserPromise;
 }
@@ -28,25 +45,27 @@ async function getContext(): Promise<BrowserContext> {
 }
 
 /**
- * Load a Copart page once so Imperva/Incapsula issues a valid clearance cookie
- * for this browser context. Subsequent in-page fetches to the public JSON
- * endpoints then succeed.
+ * Keep a single Copart page open and let Imperva/Incapsula resolve its JS
+ * challenge on it. The in-page fetch to the public JSON endpoints then runs
+ * from that same warmed, same-origin page — the setup proven to return JSON
+ * (a fresh/blank page yields a 403 challenge instead).
  */
-async function warm(): Promise<void> {
-  if (warmed) return;
+async function getWarmPage(force = false): Promise<Page> {
+  if (warmPage && !force) return warmPage;
+  if (warmPage && force) {
+    await warmPage.close().catch(() => {});
+    warmPage = null;
+  }
   const ctx = await getContext();
   const page = await ctx.newPage();
-  try {
-    await page.goto("https://www.copart.com/lotSearchResults/?free=true&query=toyota", {
-      waitUntil: "domcontentloaded",
-      timeout: 45000,
-    });
-    // Give the challenge script a moment to set the clearance cookie.
-    await page.waitForTimeout(2500);
-    warmed = true;
-  } finally {
-    await page.close();
-  }
+  await page.goto(
+    "https://www.copart.com/lotSearchResults/?free=true&query=toyota",
+    { waitUntil: "domcontentloaded", timeout: 45000 }
+  );
+  // Give the Incapsula challenge script time to clear and set the cookie.
+  await page.waitForTimeout(4000);
+  warmPage = page;
+  return page;
 }
 
 export function parseLotNumber(input: string): string | null {
@@ -143,18 +162,18 @@ interface RawFetch {
   detailsOk: boolean;
   details: Record<string, unknown>;
   photos: string[];
+  debugStatus?: number;
+  debugSnippet?: string;
 }
 
-export async function getLot(lotNumber: string): Promise<Lot> {
-  await warm();
-  const ctx = await getContext();
-  const page = await ctx.newPage();
-  try {
-    const raw: RawFetch = await page.evaluate(async (ln: string) => {
+async function fetchRaw(lotNumber: string, page: Page): Promise<RawFetch> {
+  return await page.evaluate(async (ln: string) => {
       const result: {
         detailsOk: boolean;
         details: Record<string, unknown>;
         photos: string[];
+        debugStatus?: number;
+        debugSnippet?: string;
       } = { detailsOk: false, details: {}, photos: [] };
 
       try {
@@ -162,7 +181,10 @@ export async function getLot(lotNumber: string): Promise<Lot> {
           `https://www.copart.com/public/data/lotdetails/solr/${ln}`,
           { headers: { Accept: "application/json" } }
         );
-        const j = await r.json();
+        result.debugStatus = r.status;
+        const txt = await r.text();
+        result.debugSnippet = txt.slice(0, 200);
+        const j = JSON.parse(txt);
         if (j?.data?.lotDetails) {
           result.details = j.data.lotDetails;
           result.detailsOk = true;
@@ -190,18 +212,34 @@ export async function getLot(lotNumber: string): Promise<Lot> {
 
       return result;
     }, lotNumber);
+}
 
-    if (!raw.detailsOk) {
-      throw new Error(`Copart returned no lot details for ${lotNumber}`);
-    }
+export async function getLot(lotNumber: string): Promise<Lot> {
+  let page = await getWarmPage();
+  let raw = await fetchRaw(lotNumber, page);
 
-    return normalize(lotNumber, raw.details, raw.photos);
-  } finally {
-    await page.close();
+  // If the clearance cookie went stale (challenge page instead of JSON),
+  // re-warm on a fresh page once and retry before giving up.
+  if (!raw.detailsOk) {
+    console.error(
+      `[copart] first fetch failed lot=${lotNumber} status=${raw.debugStatus} snippet=${JSON.stringify(raw.debugSnippet)}`
+    );
+    page = await getWarmPage(true);
+    raw = await fetchRaw(lotNumber, page);
   }
+
+  if (!raw.detailsOk) {
+    console.error(
+      `[copart] retry fetch failed lot=${lotNumber} status=${raw.debugStatus} snippet=${JSON.stringify(raw.debugSnippet)}`
+    );
+    throw new Error(`Copart returned no lot details for ${lotNumber}`);
+  }
+
+  return normalize(lotNumber, raw.details, raw.photos);
 }
 
 export async function closeBrowser(): Promise<void> {
+  warmPage = null;
   if (context) {
     await context.close();
     context = null;
@@ -211,5 +249,4 @@ export async function closeBrowser(): Promise<void> {
     await b.close();
     browserPromise = null;
   }
-  warmed = false;
 }
